@@ -12,7 +12,9 @@ ticker = st.text_input("Ange en aktieticker (t.ex. AAPL, TSLA, VOLV-B.ST):", val
 
 def get_number(val):
     try:
-        return float(val.values[0]) if isinstance(val, pd.Series) else float(val)
+        if isinstance(val, pd.Series):
+            return float(val.iloc[-1])
+        return float(val)
     except:
         return None
 
@@ -22,7 +24,7 @@ if ticker:
         if data.empty:
             st.error("❌ Ingen data hittades. Kontrollera ticker.")
         else:
-            # Indikatorer
+            # Tekniska indikatorer
             data['SMA50'] = data['Close'].rolling(window=50).mean()
             data['SMA200'] = data['Close'].rolling(window=200).mean()
 
@@ -39,7 +41,8 @@ if ticker:
             data['MACD'] = ema_12 - ema_26
             data['MACD_Signal'] = data['MACD'].ewm(span=9, adjust=False).mean()
 
-            latest = data.iloc[-1]
+            # Hämta senaste datapunkt
+            latest = data.dropna().iloc[-1]
             rsi = get_number(latest['RSI'])
             macd = get_number(latest['MACD'])
             macd_signal = get_number(latest['MACD_Signal'])
@@ -47,10 +50,11 @@ if ticker:
             sma50 = get_number(latest['SMA50'])
             sma200 = get_number(latest['SMA200'])
 
-            support = float(data['Close'].rolling(window=50).min().iloc[-1])
-            resistance = float(data['Close'].rolling(window=50).max().iloc[-1])
+            # Stöd/motstånd
+            support = float(data['Close'].rolling(window=50).min().dropna().iloc[-1])
+            resistance = float(data['Close'].rolling(window=50).max().dropna().iloc[-1])
 
-            # Förväntad stängning
+            # Förväntad stängningskurs
             today = pd.Timestamp.now(tz="UTC").date()
             today_data = data[data.index.date == today]
             if len(today_data) >= 5:
@@ -85,16 +89,17 @@ if ticker:
                 st.write(f"- RSI: {rsi:.2f}")
                 st.write(f"- MACD: {macd:.2f}")
                 st.write(f"- MACD Signal: {macd_signal:.2f}")
-                st.write(f"- Stängningspris: {close:.2f} kr")
+                st.write(f"- Close: {close:.2f} kr")
                 st.write(f"- SMA50: {sma50:.2f} kr")
                 st.write(f"- SMA200: {sma200:.2f} kr")
 
-            # Volym + prisgraf med Fibonacci-nivåer
-            st.subheader("📈 Pris- och volymdiagram med Fibonacci")
-            fib_low = float(data['Low'].min())
-            fib_high = float(data['High'].max())
+            # Fibonacci-nivåer
+            fib_low = float(data['Low'].dropna().min())
+            fib_high = float(data['High'].dropna().max())
             fib_levels = [fib_high - (fib_high - fib_low) * level for level in [0.236, 0.382, 0.5, 0.618, 0.786]]
 
+            # Pris + volym + fib-graf
+            st.subheader("📈 Pris- och volymdiagram med Fibonacci-nivåer")
             fig, ax1 = plt.subplots(figsize=(12, 5))
             ax1.plot(data['Close'], label='Stängningspris', color='black')
             ax1.plot(data['SMA50'], label='SMA50', linestyle='--')
@@ -112,4 +117,4 @@ if ticker:
             st.pyplot(fig)
 
     except Exception as e:
-        st.error(f"Ett fel uppstod: {e}")
+        st.error(f"❌ Ett fel uppstod: {e}")
