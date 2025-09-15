@@ -2,127 +2,106 @@ import streamlit as st
 import yfinance as yf
 import pandas as pd
 import matplotlib.pyplot as plt
-import mplfinance as mpf
-from datetime import datetime
-from sklearn.linear_model import LinearRegression
 import numpy as np
+from sklearn.linear_model import LinearRegression
+import mplfinance as mpf
 
-st.set_page_config(page_title="AI Aktieanalys PRO", layout="centered")
-st.title("📈 Avancerad Aktieanalys i Nuläget")
+st.set_page_config(page_title="AI Aktieanalys", layout="wide")
+st.title("📊 AI Aktieanalys – Daglig Handelsvy")
 
-# Ticker
-st.markdown("Skriv in en ticker (t.ex. AAPL, TSLA, VOLV-B.ST):")
-ticker = st.text_input("Ticker", value="AAPL").upper()
+# --- Ticker input ---
+ticker = st.text_input("Ange en aktieticker (t.ex. AAPL, TSLA, VOLV-B.ST):", value="AAPL").upper()
 
-# Funktion: Förutsäg stängning
-@st.cache_data
-
-def predict_close(data):
-    today = pd.Timestamp.now(tz="UTC").date()
-    intraday = data[data.index.date == today]
-    if len(intraday) < 10:
-        return None
-    X = np.arange(len(intraday)).reshape(-1, 1)
-    y = intraday['Close'].values.reshape(-1, 1)
-    model = LinearRegression().fit(X, y)
-    x_future = np.array([[len(intraday) + 5]])
-    return float(model.predict(x_future)[0][0])
-
-# Funktion: Candlestick-mönster
-candlestick_patterns = {
-    "Hammer": lambda o, h, l, c: (h - l) > 3 * (o - c) and (c - l) / (.001 + h - l) > 0.6,
-    "Shooting Star": lambda o, h, l, c: (h - l) > 3 * (o - c) and (h - o) / (.001 + h - l) > 0.6,
-}
-
-def detect_candles(data):
-    patterns = []
-    for name, func in candlestick_patterns.items():
-        if func(data.Open.iloc[-1], data.High.iloc[-1], data.Low.iloc[-1], data.Close.iloc[-1]):
-            patterns.append(name)
-    return patterns
-
+# --- Hämta data ---
 if ticker:
     try:
-        df = yf.download(ticker, period="5d", interval="1m")
-        df.dropna(inplace=True)
-
-        if df.empty:
-            st.error("❌ Ingen data hittades. Kontrollera tickern.")
+        data = yf.download(ticker, period="5d", interval="5m")
+        if data.empty:
+            st.error("❌ Ingen data hittades. Kontrollera ticker.")
         else:
-            df['SMA50'] = df['Close'].rolling(window=50).mean()
-            df['SMA200'] = df['Close'].rolling(window=200).mean()
-            delta = df['Close'].diff()
+            # --- Beräkningar ---
+            data['SMA50'] = data['Close'].rolling(window=50).mean()
+            data['SMA200'] = data['Close'].rolling(window=200).mean()
+
+            delta = data['Close'].diff()
             gain = delta.where(delta > 0, 0)
             loss = -delta.where(delta < 0, 0)
             avg_gain = gain.rolling(window=14).mean()
             avg_loss = loss.rolling(window=14).mean()
             rs = avg_gain / avg_loss
-            df['RSI'] = 100 - (100 / (1 + rs))
+            data['RSI'] = 100 - (100 / (1 + rs))
 
-            ema_12 = df['Close'].ewm(span=12, adjust=False).mean()
-            ema_26 = df['Close'].ewm(span=26, adjust=False).mean()
-            df['MACD'] = ema_12 - ema_26
-            df['MACD_Signal'] = df['MACD'].ewm(span=9, adjust=False).mean()
+            ema_12 = data['Close'].ewm(span=12, adjust=False).mean()
+            ema_26 = data['Close'].ewm(span=26, adjust=False).mean()
+            data['MACD'] = ema_12 - ema_26
+            data['MACD_Signal'] = data['MACD'].ewm(span=9, adjust=False).mean()
 
-            close = df['Close'].iloc[-1]
-            sma50 = df['SMA50'].iloc[-1]
-            sma200 = df['SMA200'].iloc[-1]
-            rsi = df['RSI'].iloc[-1]
-            macd = df['MACD'].iloc[-1]
-            macd_signal = df['MACD_Signal'].iloc[-1]
-            support = df['Close'].rolling(window=50).min().iloc[-1]
-            resistance = df['Close'].rolling(window=50).max().iloc[-1]
+            # --- Senaste värden ---
+            latest = data.iloc[-1]
+            def get_number(val):
+                if hasattr(val, 'item'): return val.item()
+                elif isinstance(val, pd.Series): return val.values[0]
+                else: return float(val)
 
-            candle_hits = detect_candles(df)
+            rsi = get_number(latest['RSI'])
+            macd = get_number(latest['MACD'])
+            macd_signal = get_number(latest['MACD_Signal'])
+            close = get_number(latest['Close'])
+            sma50 = get_number(latest['SMA50'])
+            sma200 = get_number(latest['SMA200'])
 
-            # Risk/Reward-nivåer (enkel 2:1)
-            risk = close - support
-            reward = resistance - close
-            rr_ratio = round(reward / risk, 2) if risk > 0 else 0
+            # --- Stöd/motstånd och stängningsprognos ---
+            support = get_number(data['Close'].rolling(window=50).min().iloc[-1])
+            resistance = get_number(data['Close'].rolling(window=50).max().iloc[-1])
 
-            signal = "HÅLL 🤝"
+            today = pd.Timestamp.now(tz="UTC").date()
+            today_data = data[data.index.date == today]
+            if len(today_data) >= 5:
+                X = np.arange(len(today_data)).reshape(-1, 1)
+                y = today_data['Close'].values.reshape(-1, 1)
+                model = LinearRegression().fit(X, y)
+                future_x = np.array([[len(today_data) + 5]])
+                prediction = model.predict(future_x)[0][0]
+            else:
+                prediction = None
+
+            # --- Signal ---
             if rsi < 30 and macd < macd_signal:
                 signal = "KÖP 📥"
             elif rsi > 70 and macd > macd_signal:
                 signal = "SÄLJ 📤"
+            else:
+                signal = "HÅLL 🤝"
 
-            pred_close = predict_close(df)
-
-            # Visa resultat
-            st.subheader(f"Signal för {ticker} (senaste datan)")
+            # --- Visa info ---
+            st.subheader(f"Signal för {ticker} – Senaste datan")
             st.markdown(f"### ✅ **{signal}**")
             st.markdown(f"💰 **Köp runt:** {support:.2f} kr")
             st.markdown(f"💸 **Sälj runt:** {resistance:.2f} kr")
-            st.markdown(f"📊 **Risk/Reward-förhållande:** {rr_ratio}:1")
-            if pred_close:
-                st.markdown(f"📉 **Förväntad stängning:** {pred_close:.2f} kr")
-            if candle_hits:
-                st.markdown(f"🕯️ **Candlestick-mönster:** {', '.join(candle_hits)}")
+            if prediction:
+                st.markdown(f"📉 **Förväntad stängning:** ca {prediction:.2f} kr")
 
-            with st.expander("Visa detaljerad analys"):
+            # --- Detaljerad analys ---
+            with st.expander("🔍 Visa detaljerad analys"):
                 st.write(f"- RSI: {rsi:.2f}")
                 st.write(f"- MACD: {macd:.2f}")
                 st.write(f"- MACD Signal: {macd_signal:.2f}")
-                st.write(f"- SMA50: {sma50:.2f}")
-                st.write(f"- SMA200: {sma200:.2f}")
-                st.write(f"- Volym: {df['Volume'].iloc[-1]}")
+                st.write(f"- Close: {close:.2f} kr")
+                st.write(f"- SMA50: {sma50:.2f} kr")
+                st.write(f"- SMA200: {sma200:.2f} kr")
 
-            # Candlestick + indikator-graf
-            st.subheader("📉 Prisdiagram med indikatorer")
-            fig, ax = plt.subplots(figsize=(12, 5))
-            ax.plot(df['Close'], label='Pris', color='black')
-            ax.plot(df['SMA50'], label='SMA50', linestyle='--')
-            ax.plot(df['SMA200'], label='SMA200', linestyle='--')
-            ax.axhline(support, color='green', linestyle=':', label=f'Stöd ({support:.2f} kr)')
-            ax.axhline(resistance, color='red', linestyle=':', label=f'Motstånd ({resistance:.2f} kr)')
-            ax.set_title(f"{ticker} – Prisdiagram")
-            ax.legend()
-            ax.grid(True)
-            st.pyplot(fig)
+            # --- mplfinance candlestick-graf ---
+            st.subheader("📉 Candlestick med volym och Fibonacci")
+            df = data[['Open', 'High', 'Low', 'Close', 'Volume']].copy()
+            df.index.name = 'Date'
+            df = df[-100:]
+            fib_low = df['Low'].min()
+            fib_high = df['High'].max()
+            fib_levels = [fib_high - (fib_high - fib_low) * level for level in [0.236, 0.382, 0.5, 0.618, 0.786]]
 
-            # Candlestick-graf med volym
-            st.subheader("🕯️ Candlestick-graf med volym")
-            mpf.plot(df.tail(100), type='candle', volume=True, style='yahoo')
+            fib_addplots = [mpf.make_addplot([lvl]*len(df), color='blue', linestyle='dotted') for lvl in fib_levels]
+            mpf_fig, _ = mpf.plot(df, type='candle', volume=True, addplot=fib_addplots, returnfig=True, style='yahoo')
+            st.pyplot(mpf_fig)
 
     except Exception as e:
         st.error(f"Ett fel uppstod: {e}")
