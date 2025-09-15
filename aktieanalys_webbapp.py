@@ -96,6 +96,24 @@ if all(col in data.columns for col in required_cols):
     df.index.name = 'Date'
     df = df[-100:]  # Visa senaste 100 datapunkter
 else:
+    # --- Visa candlestick-graf om data finns ---
+if df is not None:
+    fib_low = df['Low'].min()
+    fib_high = df['High'].max()
+    fib_levels = [fib_high - (fib_high - fib_low) * level for level in [0.236, 0.382, 0.5, 0.618, 0.786]]
+
+    fib_addplots = [mpf.make_addplot([lvl] * len(df), color='blue', linestyle='dotted') for lvl in fib_levels]
+
+    mpf_fig, _ = mpf.plot(
+        df,
+        type='candle',
+        volume=True,
+        addplot=fib_addplots,
+        returnfig=True,
+        style='yahoo'
+    )
+    st.pyplot(mpf_fig)
+
     st.warning("Vissa nödvändiga kolumner (Open, High, Low, Close, Volume) saknas – candlestick-analys visas ej.")
     df = None
 
@@ -114,6 +132,7 @@ else:
 
     except Exception as e:
         st.error(f"Ett fel uppstod: {e}")
+
 
 
 
