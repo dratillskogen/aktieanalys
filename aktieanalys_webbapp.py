@@ -24,7 +24,6 @@ if ticker:
         if data.empty:
             st.error("❌ Ingen data hittades. Kontrollera ticker.")
         else:
-            # Indikatorer
             data['SMA50'] = data['Close'].rolling(window=50).mean()
             data['SMA200'] = data['Close'].rolling(window=200).mean()
 
@@ -49,14 +48,14 @@ if ticker:
             sma50 = get_number(latest['SMA50'])
             sma200 = get_number(latest['SMA200'])
 
-            # Support/motstånd (Fibonacci-nivåer)
-            fib_low = data['Low'].min()
-            fib_high = data['High'].max()
+            # Fibonacci nivåer (support/resistance)
+            fib_low = get_number(data['Low'].min())
+            fib_high = get_number(data['High'].max())
             fib_levels = [fib_high - (fib_high - fib_low) * level for level in [0.236, 0.382, 0.5, 0.618, 0.786]]
             support = get_number(data['Close'].rolling(window=50).min().iloc[-1])
             resistance = get_number(data['Close'].rolling(window=50).max().iloc[-1])
 
-            # Förväntad stängningskurs
+            # Förväntad stängning
             today = pd.Timestamp.now(tz="UTC").date()
             today_data = data[data.index.date == today]
             if len(today_data) >= 5:
@@ -68,15 +67,15 @@ if ticker:
             else:
                 prediction = None
 
-            # Signal
-            if rsi < 30 and macd < macd_signal:
+            # SIGNAL - FÖRÄNDRADE TILL float jämförelse
+            if float(rsi) < 30 and float(macd) < float(macd_signal):
                 signal = "KÖP 📥"
-            elif rsi > 70 and macd > macd_signal:
+            elif float(rsi) > 70 and float(macd) > float(macd_signal):
                 signal = "SÄLJ 📤"
             else:
                 signal = "HÅLL 🤝"
 
-            # Visa signal
+            # Visa info
             st.subheader(f"Signal för {ticker} – Senaste datan")
             st.markdown(f"### ✅ **{signal}**")
             st.markdown(f"💰 **Köp runt:** {support:.2f} kr")
@@ -84,7 +83,7 @@ if ticker:
             if prediction:
                 st.markdown(f"📉 **Förväntad stängning:** ca {prediction:.2f} kr")
 
-            # Detaljerad analys
+            # Detaljer
             with st.expander("🔍 Visa detaljerad analys"):
                 st.write(f"- RSI: {rsi:.2f}")
                 st.write(f"- MACD: {macd:.2f}")
@@ -93,10 +92,9 @@ if ticker:
                 st.write(f"- SMA50: {sma50:.2f} kr")
                 st.write(f"- SMA200: {sma200:.2f} kr")
 
-            # Vanlig graf med Close-pris + SMA + Fib-nivåer + volym
-            st.subheader("📈 Pris och volymdiagram")
+            # Pris + Volym-graf med Fibonacci
+            st.subheader("📈 Pris & volymdiagram med Fibonacci-nivåer")
             fig, ax1 = plt.subplots(figsize=(12, 5))
-
             ax1.plot(data['Close'], label='Stängningspris', color='black')
             ax1.plot(data['SMA50'], label='SMA50', linestyle='--')
             ax1.plot(data['SMA200'], label='SMA200', linestyle='--')
