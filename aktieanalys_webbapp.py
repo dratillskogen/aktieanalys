@@ -25,6 +25,7 @@ if ticker:
         if data.empty:
             st.error("❌ Ingen data hittades. Kontrollera ticker.")
         else:
+            # --- Indikatorer ---
             data['SMA50'] = data['Close'].rolling(window=50).mean()
             data['SMA200'] = data['Close'].rolling(window=200).mean()
 
@@ -63,13 +64,15 @@ if ticker:
             else:
                 prediction = None
 
+            # --- Signal ---
             if rsi < 30 and macd < macd_signal:
-                signal = "KÖP 📥"
+                signal = "KÖP 📅"
             elif rsi > 70 and macd > macd_signal:
-                signal = "SÄLJ 📤"
+                signal = "SÄLJ 📄"
             else:
                 signal = "HÅLL 🤝"
 
+            # --- Visa info ---
             st.subheader(f"Signal för {ticker} – Senaste datan")
             st.markdown(f"### ✅ **{signal}**")
             st.markdown(f"💰 **Köp runt:** {support:.2f} kr")
@@ -85,33 +88,21 @@ if ticker:
                 st.write(f"- SMA50: {sma50:.2f} kr")
                 st.write(f"- SMA200: {sma200:.2f} kr")
 
-            st.subheader("📉 Candlestick med volym och Fibonacci")
-           # --- Förbered candlestick-data och ta bort rader med saknade värden ---
-required_cols = ['Open', 'High', 'Low', 'Close', 'Volume']
-
-if all(col in data.columns for col in required_cols):
-    df = data[required_cols].copy()
-    df = df.dropna(subset=required_cols)  # Rensa bort rader där värden saknas
-    df = df.astype(float)  # Se till att alla kolumner är float
-    df.index.name = 'Date'
-    df = df[-100:]  # Visa senaste 100 datapunkter
-else:
-               # --- Visa candlestick-graf om data finns ---
+            # --- Candlestick + Fibonacci ---
             required_cols = ['Open', 'High', 'Low', 'Close', 'Volume']
-
             if all(col in data.columns for col in required_cols):
                 df = data[required_cols].copy()
-                df = df.dropna(subset=required_cols)  # Rensa bort rader där värden saknas
-                df = df.astype(float)  # Se till att alla kolumner är float
+                df = df.dropna(subset=required_cols)
+                df = df.astype(float)
                 df.index.name = 'Date'
-                df = df[-100:]  # Visa senaste 100 datapunkter
+                df = df[-100:]
 
                 fib_low = df['Low'].min()
                 fib_high = df['High'].max()
                 fib_levels = [fib_high - (fib_high - fib_low) * level for level in [0.236, 0.382, 0.5, 0.618, 0.786]]
-
                 fib_addplots = [mpf.make_addplot([lvl] * len(df), color='blue', linestyle='dotted') for lvl in fib_levels]
 
+                st.subheader("📉 Candlestick-graf med volym & Fibonacci")
                 mpf_fig, _ = mpf.plot(
                     df,
                     type='candle',
@@ -122,7 +113,7 @@ else:
                 )
                 st.pyplot(mpf_fig)
             else:
-                st.warning("Vissa nödvändiga kolumner (Open, High, Low, Close, Volume) saknas – candlestick-analys visas ej.")
+                st.warning("Vissa nödvändiga kolumner saknas för candlestick-graf.")
 
     except Exception as e:
         st.error(f"Ett fel uppstod: {e}")
