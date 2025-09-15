@@ -86,7 +86,13 @@ if ticker:
                 st.write(f"- SMA200: {sma200:.2f} kr")
 
             st.subheader("📉 Candlestick med volym och Fibonacci")
+            # --- Förbered candlestick-data och ta bort rader med saknade värden ---
             df = data[['Open', 'High', 'Low', 'Close', 'Volume']].copy()
+            df = df.dropna(subset=['Open', 'High', 'Low', 'Close', 'Volume'])  # Rensa bort NaN-värden
+            df = df.astype(float)  # Se till att alla kolumner är float
+            df.index.name = 'Date'
+            df = df[-100:]  # Visa senaste 100 datapunkter
+
             df.index.name = 'Date'
             df = df[-100:].astype(float)
 
@@ -100,3 +106,4 @@ if ticker:
 
     except Exception as e:
         st.error(f"Ett fel uppstod: {e}")
+
