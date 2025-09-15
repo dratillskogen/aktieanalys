@@ -16,6 +16,12 @@ ticker = st.text_input("Ange en aktieticker (t.ex. AAPL, TSLA, VOLV-B.ST):", val
 if ticker:
     try:
         data = yf.download(ticker, period="5d", interval="5m")
+
+        # 🧹 Rensa bort NaN och icke-numeriska värden
+        ohlc_cols = ["Open", "High", "Low", "Close", "Volume"]
+        data[ohlc_cols] = data[ohlc_cols].apply(pd.to_numeric, errors='coerce')
+        data.dropna(subset=ohlc_cols, inplace=True)
+
         if data.empty:
             st.error("❌ Ingen data hittades. Kontrollera ticker.")
         else:
@@ -90,16 +96,17 @@ if ticker:
                 st.write(f"- SMA50: {sma50:.2f} kr")
                 st.write(f"- SMA200: {sma200:.2f} kr")
 
-            # --- mplfinance candlestick-graf ---
+            # --- Candlestick-graf med volym och Fibonacci ---
             st.subheader("📉 Candlestick med volym och Fibonacci")
-            df = data[['Open', 'High', 'Low', 'Close', 'Volume']].copy()
+            df = data[ohlc_cols].copy()
             df.index.name = 'Date'
-            df = df[-100:]
+            df = df[-100:]  # Sista 100 datapunkter
+
             fib_low = df['Low'].min()
             fib_high = df['High'].max()
             fib_levels = [fib_high - (fib_high - fib_low) * level for level in [0.236, 0.382, 0.5, 0.618, 0.786]]
-
             fib_addplots = [mpf.make_addplot([lvl]*len(df), color='blue', linestyle='dotted') for lvl in fib_levels]
+
             mpf_fig, _ = mpf.plot(df, type='candle', volume=True, addplot=fib_addplots, returnfig=True, style='yahoo')
             st.pyplot(mpf_fig)
 
