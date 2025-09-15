@@ -45,9 +45,10 @@ if ticker:
 
             latest = data.iloc[-1]
             def get_number(val):
-                if hasattr(val, 'item'): return val.item()
-                elif isinstance(val, pd.Series): return val.values[0]
-                else: return float(val)
+                try:
+                    return float(val)
+                except:
+                    return float(val.values[-1]) if hasattr(val, 'values') else 0
 
             rsi = get_number(latest['RSI'])
             macd = get_number(latest['MACD'])
@@ -105,7 +106,7 @@ if ticker:
             fib_low = df['Low'].min()
             fib_high = df['High'].max()
             fib_levels = [fib_high - (fib_high - fib_low) * level for level in [0.236, 0.382, 0.5, 0.618, 0.786]]
-            fib_addplots = [mpf.make_addplot([lvl]*len(df), color='blue', linestyle='dotted') for lvl in fib_levels]
+            fib_addplots = [mpf.make_addplot(np.repeat(lvl, len(df)), color='blue', linestyle='dotted') for lvl in fib_levels]
 
             mpf_fig, _ = mpf.plot(
                 df,
