@@ -38,10 +38,20 @@ if ticker:
             data['MACD_Signal'] = data['MACD'].ewm(span=9, adjust=False).mean()
 
             latest = data.iloc[-1]
-            rsi = latest['RSI'].item() if hasattr(latest['RSI'], 'item') else latest['RSI']
-            macd = latest['MACD'].item() if hasattr(latest['MACD'], 'item') else latest['MACD']
-            macd_signal = latest['MACD_Signal'].item() if hasattr(latest['MACD_Signal'], 'item') else latest['MACD_Signal']
-            close = latest['Close'].item() if hasattr(latest['Close'], 'item') else latest['Close']
+            def get_number(val):
+                if hasattr(val, 'item'):
+                    return val.item()
+                elif isinstance(val, pd.Series):
+                    return val.values[0]
+                else:
+                    return val
+
+            rsi = get_number(latest['RSI'])
+            macd = get_number(latest['MACD'])
+            macd_signal = get_number(latest['MACD_Signal'])
+            close = get_number(latest['Close'])
+            sma50 = get_number(latest['SMA50'])
+            sma200 = get_number(latest['SMA200'])
 
             # 4. Enkel logik för signal
             if rsi < 30 and macd < macd_signal:
@@ -61,8 +71,8 @@ if ticker:
                 st.write(f"- MACD: {macd:.2f}")
                 st.write(f"- MACD Signal: {macd_signal:.2f}")
                 st.write(f"- Stängningspris: {close:.2f} kr")
-                st.write(f"- SMA50: {latest['SMA50']:.2f} kr")
-                st.write(f"- SMA200: {latest['SMA200']:.2f} kr")
+                st.write(f"- SMA50: {sma50:.2f} kr")
+                st.write(f"- SMA200: {sma200:.2f} kr")
 
             # 7. Graf
             st.subheader("Prisdiagram")
