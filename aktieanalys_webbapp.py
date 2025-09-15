@@ -53,7 +53,11 @@ if ticker:
             sma50 = get_number(latest['SMA50'])
             sma200 = get_number(latest['SMA200'])
 
-            # 4. Enkel logik för signal
+            # 4. Stöd- och motståndsnivåer (baserat på tidigare lägsta/högsta)
+            support = round(data['Close'].rolling(window=50).min().iloc[-1], 2)
+            resistance = round(data['Close'].rolling(window=50).max().iloc[-1], 2)
+
+            # 5. Enkel logik för signal
             if rsi < 30 and macd < macd_signal:
                 signal = "KÖP 📥"
             elif rsi > 70 and macd > macd_signal:
@@ -61,11 +65,13 @@ if ticker:
             else:
                 signal = "HÅLL 🤝"
 
-            # 5. Visa signal
+            # 6. Visa signal
             st.subheader(f"Signal för {ticker} (senaste datan)")
             st.markdown(f"### ✅ **{signal}**")
+            st.markdown(f"💰 **Köp runt:** {support} kr")
+            st.markdown(f"💸 **Sälj runt:** {resistance} kr")
 
-            # 6. Expander för detaljerad analys
+            # 7. Expander för detaljerad analys
             with st.expander("Visa detaljerad analys"):
                 st.write(f"- RSI: {rsi:.2f}")
                 st.write(f"- MACD: {macd:.2f}")
@@ -74,12 +80,14 @@ if ticker:
                 st.write(f"- SMA50: {sma50:.2f} kr")
                 st.write(f"- SMA200: {sma200:.2f} kr")
 
-            # 7. Graf
+            # 8. Graf
             st.subheader("Prisdiagram")
             fig, ax = plt.subplots(figsize=(10, 4))
             ax.plot(data['Close'], label='Pris', color='black')
             ax.plot(data['SMA50'], label='SMA50', linestyle='--')
             ax.plot(data['SMA200'], label='SMA200', linestyle='--')
+            ax.axhline(support, color='green', linestyle=':', label=f'Stöd ({support} kr)')
+            ax.axhline(resistance, color='red', linestyle=':', label=f'Motstånd ({resistance} kr)')
             ax.set_title(f"{ticker} – Senaste priset")
             ax.legend()
             ax.grid(True)
