@@ -3,6 +3,8 @@ import yfinance as yf
 import pandas as pd
 import matplotlib.pyplot as plt
 from datetime import datetime
+from sklearn.linear_model import LinearRegression
+import numpy as np
 
 st.set_page_config(page_title="AI Aktieanalys", layout="centered")
 st.title("📈 Aktieanalys i Nuläget")
@@ -10,6 +12,24 @@ st.title("📈 Aktieanalys i Nuläget")
 # 1. Ticker-input
 st.markdown("Skriv in en ticker (t.ex. AAPL, TSLA, VOLV-B.ST):")
 ticker = st.text_input("Ticker", value="AAPL").upper()
+
+# Funktion för att förutsäga stängningskurs
+def förväntad_stängning(data):
+    today = pd.Timestamp.now(tz="UTC").date()
+    today_data = data[data.index.date == today]
+    
+    if len(today_data) < 5:
+        return None
+
+    X = np.arange(len(today_data)).reshape(-1, 1)
+    y = today_data["Close"].values.reshape(-1, 1)
+
+    model = LinearRegression()
+    model.fit(X, y)
+
+    x_future = np.array([[len(today_data) + 5]])
+    predicted_price = model.predict(x_future)[0][0]
+    return predicted_price
 
 if ticker:
     try:
@@ -38,6 +58,7 @@ if ticker:
             data['MACD_Signal'] = data['MACD'].ewm(span=9, adjust=False).mean()
 
             latest = data.iloc[-1]
+
             def get_number(val):
                 if hasattr(val, 'item'):
                     return val.item()
@@ -66,10 +87,15 @@ if ticker:
                 signal = "HÅLL 🤝"
 
             # 6. Visa signal
+            stängningsprognos = förväntad_stängning(data)
             st.subheader(f"Signal för {ticker} (senaste datan)")
             st.markdown(f"### ✅ **{signal}**")
             st.markdown(f"💰 **Köp runt:** {support:.2f} kr")
             st.markdown(f"💸 **Sälj runt:** {resistance:.2f} kr")
+            if stängningsprognos:
+                st.markdown(f"📉 **Förväntad stängningskurs:** ca **{stängningsprognos:.2f} kr**")
+            else:
+                st.markdown("🔍 Ingen stängningsprognos (för lite dagsdata).")
 
             # 7. Expander för detaljerad analys
             with st.expander("Visa detaljerad analys"):
@@ -86,8 +112,8 @@ if ticker:
             ax.plot(data['Close'], label='Pris', color='black')
             ax.plot(data['SMA50'], label='SMA50', linestyle='--')
             ax.plot(data['SMA200'], label='SMA200', linestyle='--')
-            ax.axhline(support, color='green', linestyle=':', label=f'Stöd ({support} kr)')
-            ax.axhline(resistance, color='red', linestyle=':', label=f'Motstånd ({resistance} kr)')
+            ax.axhline(support, color='green', linestyle=':', label=f'Stöd ({support:.2f} kr)')
+            ax.axhline(resistance, color='red', linestyle=':', label=f'Motstånd ({resistance:.2f} kr)')
             ax.set_title(f"{ticker} – Senaste priset")
             ax.legend()
             ax.grid(True)
