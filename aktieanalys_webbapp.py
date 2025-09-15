@@ -38,10 +38,10 @@ if ticker:
             data['MACD_Signal'] = data['MACD'].ewm(span=9, adjust=False).mean()
 
             latest = data.iloc[-1]
-            rsi = latest['RSI']
-            macd = latest['MACD']
-            macd_signal = latest['MACD_Signal']
-            close = latest['Close']
+            rsi = latest['RSI'].item() if hasattr(latest['RSI'], 'item') else latest['RSI']
+            macd = latest['MACD'].item() if hasattr(latest['MACD'], 'item') else latest['MACD']
+            macd_signal = latest['MACD_Signal'].item() if hasattr(latest['MACD_Signal'], 'item') else latest['MACD_Signal']
+            close = latest['Close'].item() if hasattr(latest['Close'], 'item') else latest['Close']
 
             # 4. Enkel logik för signal
             if rsi < 30 and macd < macd_signal:
