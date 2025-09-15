@@ -4,98 +4,76 @@ import pandas as pd
 import matplotlib.pyplot as plt
 from datetime import datetime
 
-# Streamlit layout
-st.set_page_config(page_title="Aktieanalysverktyg", layout="wide")
-st.title("📈 Enkel Aktieanalys med Signal och Prisnivåer")
+st.set_page_config(page_title="AI Aktieanalys", layout="centered")
+st.title("📈 Aktieanalys i Nuläget")
 
-# Användarinmatning
-ticker = st.text_input("Ange aktiens ticker (t.ex. AAPL, TSLA, VOLV-B.ST):")
+# 1. Ticker-input
+st.markdown("Skriv in en ticker (t.ex. AAPL, TSLA, VOLV-B.ST):")
+ticker = st.text_input("Ticker", value="AAPL").upper()
 
 if ticker:
-    today = datetime.today().strftime('%Y-%m-%d')
-    data = yf.download(ticker, start="2022-01-01", end=today)
+    try:
+        # 2. Hämta den senaste datan
+        data = yf.download(ticker, period="5d", interval="1m")
+        data = data.dropna()
 
-    # Indikatorer
-    data['SMA50'] = data['Close'].rolling(window=50).mean()
-    data['SMA200'] = data['Close'].rolling(window=200).mean()
-
-    ema_12 = data['Close'].ewm(span=12, adjust=False).mean()
-    ema_26 = data['Close'].ewm(span=26, adjust=False).mean()
-    data['MACD'] = ema_12 - ema_26
-    data['MACD_Signal'] = data['MACD'].ewm(span=9, adjust=False).mean()
-
-    delta = data['Close'].diff()
-    gain = delta.where(delta > 0, 0)
-    loss = -delta.where(delta < 0, 0)
-    avg_gain = gain.rolling(window=14).mean()
-    avg_loss = loss.rolling(window=14).mean()
-    rs = avg_gain / avg_loss
-    data['RSI'] = 100 - (100 / (1 + rs))
-
-    # Stöd- och motståndsnivåer (senaste 50 dagar)
-    data['Rolling_Min'] = data['Close'].rolling(window=50).min()
-    data['Rolling_Max'] = data['Close'].rolling(window=50).max()
-
-    data.dropna(inplace=True)
-    latest = data.iloc[-1]
-
-    # Konvertera till float
-    def to_float(value):
-        if hasattr(value, "item"):
-            return value.item()
-        elif hasattr(value, "values"):
-            return float(value.values[0])
+        if data.empty:
+            st.error("❌ Ingen data hittades. Kontrollera att tickern är korrekt.")
         else:
-            return float(value)
+            # 3. Teknisk analys
+            data['SMA50'] = data['Close'].rolling(window=50).mean()
+            data['SMA200'] = data['Close'].rolling(window=200).mean()
 
-    rsi = to_float(latest['RSI'])
-    macd = to_float(latest['MACD'])
-    macd_signal = to_float(latest['MACD_Signal'])
-    close = to_float(latest['Close'])
-    sma50 = to_float(latest['SMA50'])
-    sma200 = to_float(latest['SMA200'])
-    support = to_float(latest['Rolling_Min'])
-    resistance = to_float(latest['Rolling_Max'])
+            delta = data['Close'].diff()
+            gain = delta.where(delta > 0, 0)
+            loss = -delta.where(delta < 0, 0)
+            avg_gain = gain.rolling(window=14).mean()
+            avg_loss = loss.rolling(window=14).mean()
+            rs = avg_gain / avg_loss
+            data['RSI'] = 100 - (100 / (1 + rs))
 
-    # Signal
-    if rsi < 30 and macd < macd_signal:
-        signal = "📥 Stark Köp"
-    elif rsi > 70 and macd > macd_signal:
-        signal = "📤 Stark Sälj"
-    else:
-        signal = "📊 Håll"
+            ema_12 = data['Close'].ewm(span=12, adjust=False).mean()
+            ema_26 = data['Close'].ewm(span=26, adjust=False).mean()
+            data['MACD'] = ema_12 - ema_26
+            data['MACD_Signal'] = data['MACD'].ewm(span=9, adjust=False).mean()
 
-    # Visa resultat
-    st.subheader(f"Analys för {ticker.upper()} – {today}")
-    st.write(f"**RSI**: {rsi:.2f}")
-    st.write(f"**MACD**: {macd:.2f}")
-    st.write(f"**MACD-signal**: {macd_signal:.2f}")
-    st.write(f"**Stängningspris**: {close:.2f} kr")
-    st.write(f"**SMA50**: {sma50:.2f}")
-    st.write(f"**SMA200**: {sma200:.2f}")
-    st.write(f"**Köp runt**: {support:.2f} kr (stöd)")
-    st.write(f"**Sälj runt**: {resistance:.2f} kr (motstånd)")
-    st.write(f"**Rekommendation**: {signal}")
+            latest = data.iloc[-1]
+            rsi = latest['RSI']
+            macd = latest['MACD']
+            macd_signal = latest['MACD_Signal']
+            close = latest['Close']
 
-    # Prisgraf med stöd/motstånd
-    st.subheader("📉 Pris, Glidande Medelvärden & Prisnivåer")
-    fig, ax = plt.subplots(figsize=(10, 4))
-    ax.plot(data['Close'], label='Pris', color='black')
-    ax.plot(data['SMA50'], label='SMA50', linestyle='--')
-    ax.plot(data['SMA200'], label='SMA200', linestyle='--')
-    ax.axhline(support, color='green', linestyle=':', label=f'Stöd ({support:.2f} kr)')
-    ax.axhline(resistance, color='red', linestyle=':', label=f'Motstånd ({resistance:.2f} kr)')
-    ax.set_title(f"{ticker.upper()} – Prisgraf")
-    ax.legend()
-    ax.grid()
-    st.pyplot(fig)
+            # 4. Enkel logik för signal
+            if rsi < 30 and macd < macd_signal:
+                signal = "KÖP 📥"
+            elif rsi > 70 and macd > macd_signal:
+                signal = "SÄLJ 📤"
+            else:
+                signal = "HÅLL 🤝"
 
-    # RSI-graf
-    st.subheader("📊 RSI (Relative Strength Index)")
-    fig2, ax2 = plt.subplots(figsize=(10, 2.5))
-    ax2.plot(data['RSI'], label='RSI', color='purple')
-    ax2.axhline(30, color='green', linestyle='--', alpha=0.5)
-    ax2.axhline(70, color='red', linestyle='--', alpha=0.5)
-    ax2.set_title("RSI")
-    ax2.grid()
-    st.pyplot(fig2)
+            # 5. Visa signal
+            st.subheader(f"Signal för {ticker} (senaste datan)")
+            st.markdown(f"### ✅ **{signal}**")
+
+            # 6. Expander för detaljerad analys
+            with st.expander("Visa detaljerad analys"):
+                st.write(f"- RSI: {rsi:.2f}")
+                st.write(f"- MACD: {macd:.2f}")
+                st.write(f"- MACD Signal: {macd_signal:.2f}")
+                st.write(f"- Stängningspris: {close:.2f} kr")
+                st.write(f"- SMA50: {latest['SMA50']:.2f} kr")
+                st.write(f"- SMA200: {latest['SMA200']:.2f} kr")
+
+            # 7. Graf
+            st.subheader("Prisdiagram")
+            fig, ax = plt.subplots(figsize=(10, 4))
+            ax.plot(data['Close'], label='Pris', color='black')
+            ax.plot(data['SMA50'], label='SMA50', linestyle='--')
+            ax.plot(data['SMA200'], label='SMA200', linestyle='--')
+            ax.set_title(f"{ticker} – Senaste priset")
+            ax.legend()
+            ax.grid(True)
+            st.pyplot(fig)
+
+    except Exception as e:
+        st.error(f"Ett fel uppstod: {e}")
