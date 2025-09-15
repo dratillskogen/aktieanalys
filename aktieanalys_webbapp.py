@@ -44,7 +44,7 @@ if ticker:
                 elif isinstance(val, pd.Series):
                     return val.values[0]
                 else:
-                    return val
+                    return float(val)
 
             rsi = get_number(latest['RSI'])
             macd = get_number(latest['MACD'])
@@ -54,8 +54,8 @@ if ticker:
             sma200 = get_number(latest['SMA200'])
 
             # 4. Stöd- och motståndsnivåer (baserat på tidigare lägsta/högsta)
-            support = round(data['Close'].rolling(window=50).min().iloc[-1], 2)
-            resistance = round(data['Close'].rolling(window=50).max().iloc[-1], 2)
+            support = get_number(data['Close'].rolling(window=50).min().iloc[-1])
+            resistance = get_number(data['Close'].rolling(window=50).max().iloc[-1])
 
             # 5. Enkel logik för signal
             if rsi < 30 and macd < macd_signal:
@@ -68,8 +68,8 @@ if ticker:
             # 6. Visa signal
             st.subheader(f"Signal för {ticker} (senaste datan)")
             st.markdown(f"### ✅ **{signal}**")
-            st.markdown(f"💰 **Köp runt:** {support} kr")
-            st.markdown(f"💸 **Sälj runt:** {resistance} kr")
+            st.markdown(f"💰 **Köp runt:** {support:.2f} kr")
+            st.markdown(f"💸 **Sälj runt:** {resistance:.2f} kr")
 
             # 7. Expander för detaljerad analys
             with st.expander("Visa detaljerad analys"):
