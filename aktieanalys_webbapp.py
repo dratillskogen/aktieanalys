@@ -1,24 +1,23 @@
 import streamlit as st
 import yfinance as yf
 import pandas as pd
-import matplotlib.pyplot as plt
-from datetime import datetime
-from sklearn.linear_model import LinearRegression
 import numpy as np
+import matplotlib.pyplot as plt
+from sklearn.linear_model import LinearRegression
+from datetime import datetime, timedelta
 
-st.set_page_config(page_title="AI Aktieanalys", layout="centered")
-st.title("📈 Aktieanalys i Nuläget")
+st.set_page_config(page_title="📊 Daglig Aktieanalys", layout="centered")
+st.title("📈 Realtidsbaserad Aktieanalys")
 
-# 1. Ticker-input
-st.markdown("Skriv in en ticker (t.ex. AAPL, TSLA, VOLV-B.ST):")
-ticker = st.text_input("Ticker", value="AAPL").upper()
+# 🟦 Input
+ticker = st.text_input("Skriv en ticker (t.ex. AAPL, TSLA, VOLV-B.ST)", "AAPL").upper()
 
-# Funktion för att förutsäga stängningskurs
+# 🧠 Funktion: Förväntad stängningskurs
 def förväntad_stängning(data):
     today = pd.Timestamp.now(tz="UTC").date()
     today_data = data[data.index.date == today]
-    
-    if len(today_data) < 5:
+
+    if len(today_data) < 10:
         return None
 
     X = np.arange(len(today_data)).reshape(-1, 1)
@@ -26,59 +25,55 @@ def förväntad_stängning(data):
 
     model = LinearRegression()
     model.fit(X, y)
-
     x_future = np.array([[len(today_data) + 5]])
-    predicted_price = model.predict(x_future)[0][0]
-    return predicted_price
+    return model.predict(x_future)[0][0]
 
+# 📦 Datahämtning
 if ticker:
     try:
-        # 2. Hämta den senaste datan
-        data = yf.download(ticker, period="5d", interval="1m")
-        data = data.dropna()
+        data = yf.download(ticker, period="2d", interval="1m", progress=False).dropna()
 
         if data.empty:
-            st.error("❌ Ingen data hittades. Kontrollera att tickern är korrekt.")
+            st.error("❌ Ingen data hittades. Kontrollera tickern.")
         else:
-            # 3. Teknisk analys
-            data['SMA50'] = data['Close'].rolling(window=50).mean()
-            data['SMA200'] = data['Close'].rolling(window=200).mean()
+            # Glidande medelvärden
+            data["SMA50"] = data["Close"].rolling(window=50).mean()
+            data["SMA200"] = data["Close"].rolling(window=200).mean()
 
-            delta = data['Close'].diff()
+            # RSI
+            delta = data["Close"].diff()
             gain = delta.where(delta > 0, 0)
             loss = -delta.where(delta < 0, 0)
-            avg_gain = gain.rolling(window=14).mean()
-            avg_loss = loss.rolling(window=14).mean()
+            avg_gain = gain.rolling(14).mean()
+            avg_loss = loss.rolling(14).mean()
             rs = avg_gain / avg_loss
-            data['RSI'] = 100 - (100 / (1 + rs))
+            data["RSI"] = 100 - (100 / (1 + rs))
 
-            ema_12 = data['Close'].ewm(span=12, adjust=False).mean()
-            ema_26 = data['Close'].ewm(span=26, adjust=False).mean()
-            data['MACD'] = ema_12 - ema_26
-            data['MACD_Signal'] = data['MACD'].ewm(span=9, adjust=False).mean()
+            # MACD
+            ema12 = data["Close"].ewm(span=12, adjust=False).mean()
+            ema26 = data["Close"].ewm(span=26, adjust=False).mean()
+            data["MACD"] = ema12 - ema26
+            data["MACD_Signal"] = data["MACD"].ewm(span=9, adjust=False).mean()
 
+            # Stöd & motstånd
+            support = data["Close"].rolling(60).min().iloc[-1]
+            resistance = data["Close"].rolling(60).max().iloc[-1]
+
+            # Fibonacci retracement
+            high = data["Close"].max()
+            low = data["Close"].min()
+            fib_levels = [high - (high - low) * level for level in [0.236, 0.382, 0.5, 0.618, 0.786]]
+
+            # Senaste datapunkt
             latest = data.iloc[-1]
+            rsi = latest["RSI"]
+            macd = latest["MACD"]
+            macd_signal = latest["MACD_Signal"]
+            close = latest["Close"]
+            sma50 = latest["SMA50"]
+            sma200 = latest["SMA200"]
 
-            def get_number(val):
-                if hasattr(val, 'item'):
-                    return val.item()
-                elif isinstance(val, pd.Series):
-                    return val.values[0]
-                else:
-                    return float(val)
-
-            rsi = get_number(latest['RSI'])
-            macd = get_number(latest['MACD'])
-            macd_signal = get_number(latest['MACD_Signal'])
-            close = get_number(latest['Close'])
-            sma50 = get_number(latest['SMA50'])
-            sma200 = get_number(latest['SMA200'])
-
-            # 4. Stöd- och motståndsnivåer (baserat på tidigare lägsta/högsta)
-            support = get_number(data['Close'].rolling(window=50).min().iloc[-1])
-            resistance = get_number(data['Close'].rolling(window=50).max().iloc[-1])
-
-            # 5. Enkel logik för signal
+            # Enkel signal
             if rsi < 30 and macd < macd_signal:
                 signal = "KÖP 📥"
             elif rsi > 70 and macd > macd_signal:
@@ -86,19 +81,18 @@ if ticker:
             else:
                 signal = "HÅLL 🤝"
 
-            # 6. Visa signal
-            stängningsprognos = förväntad_stängning(data)
-            st.subheader(f"Signal för {ticker} (senaste datan)")
+            # Förutsägelse
+            stängning = förväntad_stängning(data)
+
+            # ✅ Visa analys
+            st.subheader(f"Signal för {ticker}")
             st.markdown(f"### ✅ **{signal}**")
             st.markdown(f"💰 **Köp runt:** {support:.2f} kr")
             st.markdown(f"💸 **Sälj runt:** {resistance:.2f} kr")
-            if stängningsprognos:
-                st.markdown(f"📉 **Förväntad stängningskurs:** ca **{stängningsprognos:.2f} kr**")
-            else:
-                st.markdown("🔍 Ingen stängningsprognos (för lite dagsdata).")
+            if stängning:
+                st.markdown(f"📉 **Förväntad stängningskurs:** {stängning:.2f} kr")
 
-            # 7. Expander för detaljerad analys
-            with st.expander("Visa detaljerad analys"):
+            with st.expander("📋 Visa detaljerad analys"):
                 st.write(f"- RSI: {rsi:.2f}")
                 st.write(f"- MACD: {macd:.2f}")
                 st.write(f"- MACD Signal: {macd_signal:.2f}")
@@ -106,15 +100,17 @@ if ticker:
                 st.write(f"- SMA50: {sma50:.2f} kr")
                 st.write(f"- SMA200: {sma200:.2f} kr")
 
-            # 8. Graf
-            st.subheader("Prisdiagram")
+            # 📊 Prisgraf
+            st.subheader("📉 Pris och indikatorer")
             fig, ax = plt.subplots(figsize=(10, 4))
-            ax.plot(data['Close'], label='Pris', color='black')
-            ax.plot(data['SMA50'], label='SMA50', linestyle='--')
-            ax.plot(data['SMA200'], label='SMA200', linestyle='--')
-            ax.axhline(support, color='green', linestyle=':', label=f'Stöd ({support:.2f} kr)')
-            ax.axhline(resistance, color='red', linestyle=':', label=f'Motstånd ({resistance:.2f} kr)')
-            ax.set_title(f"{ticker} – Senaste priset")
+            ax.plot(data["Close"], label="Pris", color="black")
+            ax.plot(data["SMA50"], label="SMA50", linestyle="--")
+            ax.plot(data["SMA200"], label="SMA200", linestyle="--")
+            ax.axhline(support, color="green", linestyle=":", label=f"Stöd ({support:.2f})")
+            ax.axhline(resistance, color="red", linestyle=":", label=f"Motstånd ({resistance:.2f})")
+            for level in fib_levels:
+                ax.axhline(level, color="blue", linestyle="--", alpha=0.3)
+            ax.set_title(f"{ticker} – Pris och tekniska nivåer")
             ax.legend()
             ax.grid(True)
             st.pyplot(fig)
