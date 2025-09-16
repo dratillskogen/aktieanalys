@@ -17,10 +17,17 @@ interval = st.selectbox("Välj intervall:", ["1m", "5m", "15m"])
 
 # --- FUNKTION FÖR NUMMER ---
 def get_number(val):
-    try:
-        return float(val)
-    except:
-        return np.nan
+    if isinstance(val, pd.Series):
+        return val.iloc[-1]
+    elif isinstance(val, (np.ndarray, list)):
+        return val[-1]
+    elif hasattr(val, 'item'):
+        return val.item()
+    else:
+        try:
+            return float(val)
+        except:
+            return np.nan
 
 # --- HÄMTA OCH ANALYSERA DATA ---
 if ticker:
