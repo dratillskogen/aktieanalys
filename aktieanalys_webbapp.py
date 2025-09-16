@@ -1,39 +1,47 @@
+# AI-Aktieanalys: Optimerad för Daytrading i Streamlit (mobilvänlig)
 
 import streamlit as st
 import yfinance as yf
 import pandas as pd
-import matplotlib.pyplot as plt
 import numpy as np
+import matplotlib.pyplot as plt
 from sklearn.linear_model import LinearRegression
 
-st.set_page_config(page_title="AI Aktieanalys", layout="wide")
-st.title("📊 AI Aktieanalys – Daglig Handelsvy")
+# --- SIDKONFIG ---
+st.set_page_config(page_title="Daytrading Analys", layout="wide")
+st.title("📈 AI-Aktieanalys för Daytrading")
 
-ticker = st.text_input("Ange en aktieticker (t.ex. AAPL, TSLA, VOLV-B.ST):", value="AAPL").upper()
+# --- INPUT ---
+ticker = st.text_input("Ange ticker (ex. AAPL, TSLA, VOLV-B.ST):", value="AAPL").upper()
+interval = st.selectbox("Välj intervall:", ["1m", "5m", "15m"])
 
+# --- FUNKTIONER ---
 def get_number(val):
-    if hasattr(val, 'item'):
-        return val.item()
-    elif isinstance(val, pd.Series):
-        return val.values[0]
-    else:
+    try:
         return float(val)
+    except:
+        return np.nan
 
+# --- ANALYS ---
 if ticker:
     try:
-        data = yf.download(ticker, period="5d", interval="5m")
+        data = yf.download(ticker, period="5d", interval=interval)
+        data = data.dropna()
+
         if data.empty:
-            st.error("❌ Ingen data hittades. Kontrollera ticker.")
+            st.warning("Ingen data hittades. Dubbelkolla tickern.")
         else:
-            data.dropna(inplace=True)
-            data['SMA50'] = data['Close'].rolling(window=50).mean()
-            data['SMA200'] = data['Close'].rolling(window=200).mean()
+            # --- TEKNISK ANALYS ---
+            data['EMA9'] = data['Close'].ewm(span=9).mean()
+            data['EMA21'] = data['Close'].ewm(span=21).mean()
+            data['SMA50'] = data['Close'].rolling(50).mean()
+            data['SMA200'] = data['Close'].rolling(200).mean()
 
             delta = data['Close'].diff()
             gain = delta.where(delta > 0, 0)
             loss = -delta.where(delta < 0, 0)
-            avg_gain = gain.rolling(window=14).mean()
-            avg_loss = loss.rolling(window=14).mean()
+            avg_gain = gain.rolling(14).mean()
+            avg_loss = loss.rolling(14).mean()
             rs = avg_gain / avg_loss
             data['RSI'] = 100 - (100 / (1 + rs))
 
@@ -42,6 +50,7 @@ if ticker:
             data['MACD'] = ema_12 - ema_26
             data['MACD_Signal'] = data['MACD'].ewm(span=9, adjust=False).mean()
 
+            # --- VÄRDEN ---
             latest = data.iloc[-1]
             rsi = get_number(latest['RSI'])
             macd = get_number(latest['MACD'])
@@ -49,55 +58,65 @@ if ticker:
             close = get_number(latest['Close'])
             sma50 = get_number(latest['SMA50'])
             sma200 = get_number(latest['SMA200'])
+            ema9 = get_number(latest['EMA9'])
+            ema21 = get_number(latest['EMA21'])
 
-            support = get_number(data['Close'].rolling(window=50).min().iloc[-1])
-            resistance = get_number(data['Close'].rolling(window=50).max().iloc[-1])
+            support = get_number(data['Close'].rolling(50).min().iloc[-1])
+            resistance = get_number(data['Close'].rolling(50).max().iloc[-1])
 
+            # --- FÖRUTSÄG STÄNGNINGSKURS ---
             today = pd.Timestamp.now(tz="UTC").date()
             today_data = data[data.index.date == today]
             if len(today_data) >= 5:
                 X = np.arange(len(today_data)).reshape(-1, 1)
                 y = today_data['Close'].values.reshape(-1, 1)
                 model = LinearRegression().fit(X, y)
-                future_x = np.array([[len(today_data) + 5]])
-                prediction = model.predict(future_x)[0][0]
+                pred = model.predict(np.array([[len(today_data)+5]]))[0][0]
             else:
-                prediction = None
+                pred = None
 
+            # --- SIGNAL ---
             if rsi < 30 and macd < macd_signal:
-                signal = "KÖP 📥"
+                signal = "KÖP 📅"
             elif rsi > 70 and macd > macd_signal:
-                signal = "SÄLJ 📤"
+                signal = "SÄLJ 📄"
             else:
                 signal = "HÅLL 🤝"
 
-            st.subheader(f"Signal för {ticker} – Senaste datan")
-            st.markdown(f"### ✅ **{signal}**")
-            st.markdown(f"💰 **Köp runt:** {support:.2f} kr")
-            st.markdown(f"💸 **Sälj runt:** {resistance:.2f} kr")
-            if prediction:
-                st.markdown(f"📉 **Förväntad stängning:** ca {prediction:.2f} kr")
+            # --- OUTPUT ---
+            st.subheader(f"Signal för {ticker} ({interval})")
+            st.markdown(f"### {signal}")
+            st.markdown(f"**💰 Köp runt:** {support:.2f} kr")
+            st.markdown(f"**💸 Sälj runt:** {resistance:.2f} kr")
+            if pred:
+                st.markdown(f"**📉 Förväntad stängning:** {pred:.2f} kr")
 
-            with st.expander("🔍 Visa detaljerad analys"):
+            # --- EXPANDER: DETALJER ---
+            with st.expander("🔍 Visa indikatorer"):
                 st.write(f"- RSI: {rsi:.2f}")
                 st.write(f"- MACD: {macd:.2f}")
                 st.write(f"- MACD Signal: {macd_signal:.2f}")
-                st.write(f"- Close: {close:.2f} kr")
-                st.write(f"- SMA50: {sma50:.2f} kr")
-                st.write(f"- SMA200: {sma200:.2f} kr")
+                st.write(f"- EMA9: {ema9:.2f} | EMA21: {ema21:.2f}")
+                st.write(f"- SMA50: {sma50:.2f} | SMA200: {sma200:.2f}")
 
-            # Enkel prisgraf
-            st.subheader("📈 Prisgraf med stöd/motstånd")
+            # --- PRISGRAF ---
+            st.subheader("📊 Prisdiagram med EMA och volym")
             fig, ax = plt.subplots(figsize=(10, 4))
-            ax.plot(data.index, data['Close'], label='Pris', color='black')
-            ax.plot(data['SMA50'], label='SMA50', linestyle='--')
-            ax.plot(data['SMA200'], label='SMA200', linestyle='--')
-            ax.axhline(support, color='green', linestyle=':', label=f'Stöd ({support:.2f} kr)')
-            ax.axhline(resistance, color='red', linestyle=':', label=f'Motstånd ({resistance:.2f} kr)')
-            ax.set_title(f"{ticker} – Senaste pris")
+            ax.plot(data['Close'], label='Pris', color='black')
+            ax.plot(data['EMA9'], label='EMA9', linestyle='--')
+            ax.plot(data['EMA21'], label='EMA21', linestyle='--')
+            ax.axhline(support, color='green', linestyle=':', label=f'Stöd ({support:.2f})')
+            ax.axhline(resistance, color='red', linestyle=':', label=f'Motstånd ({resistance:.2f})')
             ax.legend()
             ax.grid(True)
             st.pyplot(fig)
+
+            # --- VOLYM ---
+            st.subheader("🎤 Volymanalys")
+            fig2, ax2 = plt.subplots(figsize=(10, 2))
+            ax2.bar(data.index, data['Volume'], color='gray')
+            ax2.set_title("Volym")
+            st.pyplot(fig2)
 
     except Exception as e:
         st.error(f"Ett fel uppstod: {e}")
