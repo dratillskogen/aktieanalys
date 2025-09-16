@@ -10,7 +10,8 @@ from sklearn.linear_model import LinearRegression
 
 # --- SIDKONFIG ---
 st.set_page_config(page_title="Daytrading Analys", layout="wide")
-st_autorefresh = st.experimental_rerun if st.button("🔄 Uppdatera manuellt") else None
+if st.button("🔄 Uppdatera manuellt"):
+    st.experimental_rerun()
 
 # Automatisk uppdatering var 60:e sekund
 countdown = st.empty()
