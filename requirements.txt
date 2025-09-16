@@ -4,3 +4,5 @@ pandas
 matplotlib
 scikit-learn
 mplfinance
+streamlit_autorefresh
+
