@@ -1,6 +1,7 @@
 # AI-Aktieanalys: Optimerad för Daytrading i Streamlit (mobilvänlig)
 
 import streamlit as st
+import time
 import yfinance as yf
 import pandas as pd
 import numpy as np
@@ -9,6 +10,14 @@ from sklearn.linear_model import LinearRegression
 
 # --- SIDKONFIG ---
 st.set_page_config(page_title="Daytrading Analys", layout="wide")
+st_autorefresh = st.experimental_rerun if st.button("🔄 Uppdatera manuellt") else None
+
+# Automatisk uppdatering var 60:e sekund
+countdown = st.empty()
+for i in range(60, 0, -1):
+    countdown.text(f"🔄 Uppdaterar om {i} sekunder...")
+    time.sleep(1)
+st.experimental_rerun()
 st.title("📈 AI-Aktieanalys för Daytrading")
 
 # --- INPUT ---
