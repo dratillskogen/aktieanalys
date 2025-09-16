@@ -7,9 +7,12 @@ import pandas as pd
 import numpy as np
 import matplotlib.pyplot as plt
 from sklearn.linear_model import LinearRegression
+from streamlit_autorefresh import st_autorefresh
+
 
 # --- SIDKONFIG ---
 st.set_page_config(page_title="Daytrading Analys", layout="wide")
+st_autorefresh(interval=60 * 1000, key="datarefresh")
 if st.button("🔄 Uppdatera manuellt"):
     st.experimental_rerun()
 
