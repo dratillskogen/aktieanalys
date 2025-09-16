@@ -15,14 +15,14 @@ st.title("📈 AI-Aktieanalys för Daytrading")
 ticker = st.text_input("Ange ticker (ex. AAPL, TSLA, VOLV-B.ST):", value="AAPL").upper()
 interval = st.selectbox("Välj intervall:", ["1m", "5m", "15m"])
 
-# --- FUNKTIONER ---
+# --- FUNKTION FÖR NUMMER ---
 def get_number(val):
     try:
         return float(val)
     except:
         return np.nan
 
-# --- ANALYS ---
+# --- HÄMTA OCH ANALYSERA DATA ---
 if ticker:
     try:
         data = yf.download(ticker, period="5d", interval=interval)
@@ -31,7 +31,7 @@ if ticker:
         if data.empty:
             st.warning("Ingen data hittades. Dubbelkolla tickern.")
         else:
-            # --- TEKNISK ANALYS ---
+            # TEKNISKA INDIKATORER
             data['EMA9'] = data['Close'].ewm(span=9).mean()
             data['EMA21'] = data['Close'].ewm(span=21).mean()
             data['SMA50'] = data['Close'].rolling(50).mean()
@@ -50,7 +50,7 @@ if ticker:
             data['MACD'] = ema_12 - ema_26
             data['MACD_Signal'] = data['MACD'].ewm(span=9, adjust=False).mean()
 
-            # --- VÄRDEN ---
+            # SENASTE VÄRDEN
             latest = data.iloc[-1]
             rsi = get_number(latest['RSI'])
             macd = get_number(latest['MACD'])
@@ -64,7 +64,7 @@ if ticker:
             support = get_number(data['Close'].rolling(50).min().iloc[-1])
             resistance = get_number(data['Close'].rolling(50).max().iloc[-1])
 
-            # --- FÖRUTSÄG STÄNGNINGSKURS ---
+            # FÖRVÄNTAD STÄNGNING
             today = pd.Timestamp.now(tz="UTC").date()
             today_data = data[data.index.date == today]
             if len(today_data) >= 5:
@@ -75,23 +75,23 @@ if ticker:
             else:
                 pred = None
 
-            # --- SIGNAL ---
+            # SIGNALLOGIK
             if rsi < 30 and macd < macd_signal:
-                signal = "KÖP 📅"
+                signal = "KÖP 📥"
             elif rsi > 70 and macd > macd_signal:
-                signal = "SÄLJ 📄"
+                signal = "SÄLJ 📤"
             else:
                 signal = "HÅLL 🤝"
 
-            # --- OUTPUT ---
+            # --- UTDATA ---
             st.subheader(f"Signal för {ticker} ({interval})")
-            st.markdown(f"### {signal}")
-            st.markdown(f"**💰 Köp runt:** {support:.2f} kr")
-            st.markdown(f"**💸 Sälj runt:** {resistance:.2f} kr")
+            st.markdown(f"### ✅ {signal}")
+            st.markdown(f"💰 **Köp runt:** {support:.2f} kr")
+            st.markdown(f"💸 **Sälj runt:** {resistance:.2f} kr")
             if pred:
-                st.markdown(f"**📉 Förväntad stängning:** {pred:.2f} kr")
+                st.markdown(f"📉 **Förväntad stängning:** {pred:.2f} kr")
 
-            # --- EXPANDER: DETALJER ---
+            # --- DETALJER ---
             with st.expander("🔍 Visa indikatorer"):
                 st.write(f"- RSI: {rsi:.2f}")
                 st.write(f"- MACD: {macd:.2f}")
@@ -99,8 +99,8 @@ if ticker:
                 st.write(f"- EMA9: {ema9:.2f} | EMA21: {ema21:.2f}")
                 st.write(f"- SMA50: {sma50:.2f} | SMA200: {sma200:.2f}")
 
-            # --- PRISGRAF ---
-            st.subheader("📊 Prisdiagram med EMA och volym")
+            # --- PRISDIAGRAM ---
+            st.subheader("📊 Prisdiagram med EMA och stöd/motstånd")
             fig, ax = plt.subplots(figsize=(10, 4))
             ax.plot(data['Close'], label='Pris', color='black')
             ax.plot(data['EMA9'], label='EMA9', linestyle='--')
@@ -112,7 +112,7 @@ if ticker:
             st.pyplot(fig)
 
             # --- VOLYM ---
-            st.subheader("🎤 Volymanalys")
+            st.subheader("📦 Volymanalys")
             fig2, ax2 = plt.subplots(figsize=(10, 2))
             ax2.bar(data.index, data['Volume'], color='gray')
             ax2.set_title("Volym")
